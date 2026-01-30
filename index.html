@@ -1,53 +1,78 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Face AI Test</title>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+  
   <style>
-    body { margin: 0; background: #000; overflow: hidden; display: flex; justify-content: center; }
-    canvas { position: absolute; width: 100vw; height: 100vh; object-fit: cover; }
-    video { opacity: 0; position: absolute; }
+    body { margin: 0; background: #111; color: white; font-family: sans-serif; text-align: center; }
+    canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; z-index: 2; }
+    video { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+    #status { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 3; background: rgba(0,0,0,0.7); padding: 5px 15px; border-radius: 20px; font-size: 12px; }
   </style>
 </head>
 <body>
-  <video id="input_video"></video>
+  <div id="status">Запуск камеры...</div>
+  <video id="input_video" playsinline></video>
   <canvas id="output_canvas"></canvas>
 
   <script>
     const videoElement = document.getElementById('input_video');
     const canvasElement = document.getElementById('output_canvas');
     const canvasCtx = canvasElement.getContext('2d');
+    const statusBox = document.getElementById('status');
 
     function onResults(results) {
+      statusBox.innerText = "ИИ работает!";
       canvasCtx.save();
       canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-      // Рисуем видео как фон
-      canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
       
       if (results.multiFaceLandmarks) {
         for (const landmarks of results.multiFaceLandmarks) {
-          // Рисуем сетку лица (те самые 468 точек)
-          drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, {color: '#C0C0C070', lineWidth: 1});
-          drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, {color: '#FF3030'});
-          drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, {color: '#30FF30'});
+          // Рисуем сетку
+          drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, {color: '#00FF00', lineWidth: 0.5});
+          drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, {color: '#FF3030', lineWidth: 1});
+          drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, {color: '#30FF30', lineWidth: 1});
         }
       }
       canvasCtx.restore();
     }
 
-    const faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
-    faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+    const faceMesh = new FaceMesh({locateFile: (file) => {
+      return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+    }});
+
+    faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+
     faceMesh.onResults(onResults);
 
-    const camera = new Camera(videoElement, {
-      onFrame: async () => {
-        canvasElement.width = videoElement.videoWidth;
-        canvasElement.height = videoElement.videoHeight;
-        await faceMesh.send({image: videoElement});
-      }
-    });
-    camera.start();
+    async function startCamera() {
+        try {
+            const camera = new Camera(videoElement, {
+                onFrame: async () => {
+                    canvasElement.width = videoElement.videoWidth;
+                    canvasElement.height = videoElement.videoHeight;
+                    await faceMesh.send({image: videoElement});
+                }
+            });
+            await camera.start();
+            statusBox.innerText = "Камера готова, ждем ИИ...";
+        } catch (e) {
+            statusBox.innerText = "Ошибка камеры: " + e.message;
+            console.error(e);
+        }
+    }
+
+    startCamera();
   </script>
 </body>
 </html>
